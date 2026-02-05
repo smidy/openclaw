@@ -191,8 +191,10 @@ export async function parseMessageWithAttachments(
     const sniffedMime = normalizeMime(await sniffMimeFromBase64(b64));
     const sniffedIsAudio = isAudioMime(sniffedMime);
     const providedIsAudio = isAudioMime(providedMime);
+    // M4A uses MPEG-4 container; sniffers often return video/mp4. Treat as audio when provided type is audio.
+    const isM4aAudio = providedIsAudio && sniffedMime === "video/mp4";
     if (sniffedMime && !isImageMime(sniffedMime)) {
-      if (!sniffedIsAudio) {
+      if (!sniffedIsAudio && !isM4aAudio) {
         log?.warn(`attachment ${label}: detected non-image (${sniffedMime}), dropping`);
       }
       continue;
