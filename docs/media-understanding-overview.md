@@ -171,9 +171,9 @@ When a **WebSocket client** (e.g. ClawApp, web UI) sends a message with an attac
 
 - The client must send **file content**, not a path. The gateway expects **`attachments[]`** with **`content`** as **base64** (or an `ArrayBuffer`-like value that is converted to base64) — see **`src/gateway/server-methods/chat.ts`** (params `attachments`, normalized to base64).
 - The server never receives or resolves a client-side path; it only receives the bytes (base64).
-- **`src/gateway/chat-attachments.ts`** parses attachments for **images only** (`parseMessageWithAttachments`). Those images are passed as `images` into `dispatchInboundMessage`. **Audio** sent via `chat.send` is not currently turned into `MediaPath`/media understanding; that would require the gateway to accept audio attachments, write them to a temp file on the server, and set `MediaPath`/`MediaType` on the context (or an equivalent flow).
+- **Images** are parsed by **`src/gateway/chat-attachments.ts`** (`parseMessageWithAttachments`) and passed as `images` into `dispatchInboundMessage`. **Audio** is supported: the gateway detects the **first audio** attachment (by `mimeType` or sniff), writes it to a temp file under **`media/gateway/`** via `saveMediaBuffer()`, and sets **`ctx.MediaPath`** and **`ctx.MediaType`** so media understanding can transcribe it. Only the first audio attachment is used (same as Web/Signal).
 
-So: if the file exists on the client, the client must **read the file, encode it as base64, and send it in `attachments[].content`**. The server then has the content and can (if implemented) write it to a temp path and run media understanding on that server-side path.
+So: if the file exists on the client, the client must **read the file, encode it as base64, and send it in `attachments[].content`**. For audio, the server writes it to a server-side path and runs media understanding on that path.
 
 ---
 
