@@ -59,3 +59,23 @@ export const DevicePairResolvedEventSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const DevicePushRegisterParamsSchema = Type.Object(
+  {
+    pushToken: NonEmptyString,
+    pushPlatform: Type.Union([Type.Literal("fcm"), Type.Literal("apns")]),
+  },
+  { additionalProperties: false },
+);
+
+export const DevicePushRegisterResultSchema = Type.Object(
+  {
+    deviceId: NonEmptyString,
+    role: NonEmptyString,
+    pushPlatform: Type.Union([Type.Literal("fcm"), Type.Literal("apns")]),
+    registeredAtMs: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
+export const DevicePushUnregisterParamsSchema = Type.Object({}, { additionalProperties: false });

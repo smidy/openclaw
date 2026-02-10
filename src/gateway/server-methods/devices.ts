@@ -7,6 +7,8 @@ import {
   revokeDeviceToken,
   rotateDeviceToken,
   summarizeDeviceTokens,
+  setPushToken,
+  removePushToken,
 } from "../../infra/device-pairing.js";
 import {
   ErrorCodes,
@@ -17,6 +19,10 @@ import {
   validateDevicePairRejectParams,
   validateDeviceTokenRevokeParams,
   validateDeviceTokenRotateParams,
+  validateDevicePushRegisterParams,
+  validateDevicePushUnregisterParams,
+  type DevicePushRegisterParams,
+  type DevicePushRegisterResult,
 } from "../protocol/index.js";
 
 function redactPairedDevice(
@@ -186,5 +192,81 @@ export const deviceHandlers: GatewayRequestHandlers = {
       { deviceId, role: entry.role, revokedAtMs: entry.revokedAtMs ?? Date.now() },
       undefined,
     );
+  },
+  "device.push.register": async ({ params, respond, context }) => {
+    if (!validateDevicePushRegisterParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid device.push.register params: ${formatValidationErrors(
+            validateDevicePushRegisterParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+
+    const { pushToken, pushPlatform } = params as DevicePushRegisterParams;
+    const { deviceId, role } = context.client.auth;
+
+    const success = await setPushToken({
+      deviceId,
+      role,
+      pushToken,
+      pushPlatform,
+    });
+
+    if (!success) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "device not found or not paired"),
+      );
+      return;
+    }
+
+    context.logGateway.info(
+      `push token registered device=${deviceId} role=${role} platform=${pushPlatform}`,
+    );
+
+    respond(
+      true,
+      {
+        deviceId,
+        role,
+        pushPlatform,
+        registeredAtMs: Date.now(),
+      } as DevicePushRegisterResult,
+      undefined,
+    );
+  },
+  "device.push.unregister": async ({ params, respond, context }) => {
+    if (!validateDevicePushUnregisterParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid device.push.unregister params"),
+      );
+      return;
+    }
+
+    const { deviceId, role } = context.client.auth;
+
+    const success = await removePushToken({ deviceId, role });
+
+    if (!success) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "device not found or no push token"),
+      );
+      return;
+    }
+
+    context.logGateway.info(`push token unregistered device=${deviceId} role=${role}`);
+
+    respond(true, {}, undefined);
   },
 };

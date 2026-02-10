@@ -28,6 +28,10 @@ export type DeviceAuthToken = {
   rotatedAtMs?: number;
   revokedAtMs?: number;
   lastUsedAtMs?: number;
+  // Push notification token
+  pushToken?: string;
+  pushPlatform?: "fcm" | "apns";
+  pushTokenUpdatedAtMs?: number;
 };
 
 export type DeviceAuthTokenSummary = {
@@ -555,4 +559,105 @@ export async function revokeDeviceToken(params: {
     await persistState(state, params.baseDir);
     return entry;
   });
+}
+
+/**
+ * Set push notification token for a device role.
+ */
+export async function setPushToken(params: {
+  deviceId: string;
+  role: string;
+  pushToken: string;
+  pushPlatform: "fcm" | "apns";
+  baseDir?: string;
+}): Promise<boolean> {
+  return await withLock(async () => {
+    const state = await loadState(params.baseDir);
+    const device = state.pairedByDeviceId[normalizeDeviceId(params.deviceId)];
+    if (!device) {
+      return false;
+    }
+    const role = normalizeRole(params.role);
+    if (!role) {
+      return false;
+    }
+    const tokenEntry = device.tokens?.[role];
+    if (!tokenEntry) {
+      return false;
+    }
+    const tokens = { ...device.tokens };
+    tokens[role] = {
+      ...tokenEntry,
+      pushToken: params.pushToken,
+      pushPlatform: params.pushPlatform,
+      pushTokenUpdatedAtMs: Date.now(),
+    };
+    device.tokens = tokens;
+    state.pairedByDeviceId[device.deviceId] = device;
+    await persistState(state, params.baseDir);
+    return true;
+  });
+}
+
+/**
+ * Remove push notification token for a device role.
+ */
+export async function removePushToken(params: {
+  deviceId: string;
+  role: string;
+  baseDir?: string;
+}): Promise<boolean> {
+  return await withLock(async () => {
+    const state = await loadState(params.baseDir);
+    const device = state.pairedByDeviceId[normalizeDeviceId(params.deviceId)];
+    if (!device) {
+      return false;
+    }
+    const role = normalizeRole(params.role);
+    if (!role) {
+      return false;
+    }
+    const tokenEntry = device.tokens?.[role];
+    if (!tokenEntry) {
+      return false;
+    }
+    const tokens = { ...device.tokens };
+    tokens[role] = {
+      ...tokenEntry,
+      pushToken: undefined,
+      pushPlatform: undefined,
+      pushTokenUpdatedAtMs: undefined,
+    };
+    device.tokens = tokens;
+    state.pairedByDeviceId[device.deviceId] = device;
+    await persistState(state, params.baseDir);
+    return true;
+  });
+}
+
+/**
+ * Get push notification token for a device role.
+ */
+export async function getPushToken(params: {
+  deviceId: string;
+  role: string;
+  baseDir?: string;
+}): Promise<{ pushToken: string; pushPlatform: "fcm" | "apns" } | null> {
+  const state = await loadState(params.baseDir);
+  const device = state.pairedByDeviceId[normalizeDeviceId(params.deviceId)];
+  if (!device) {
+    return null;
+  }
+  const role = normalizeRole(params.role);
+  if (!role) {
+    return null;
+  }
+  const tokenEntry = device.tokens?.[role];
+  if (!tokenEntry?.pushToken || !tokenEntry.pushPlatform) {
+    return null;
+  }
+  return {
+    pushToken: tokenEntry.pushToken,
+    pushPlatform: tokenEntry.pushPlatform,
+  };
 }

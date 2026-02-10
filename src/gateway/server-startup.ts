@@ -16,6 +16,7 @@ import {
 } from "../hooks/internal-hooks.js";
 import { loadInternalHooks } from "../hooks/loader.js";
 import { isTruthyEnvValue } from "../infra/env.js";
+import { initializeFCM } from "../infra/push-notifications.js";
 import { type PluginServicesHandle, startPluginServices } from "../plugins/services.js";
 import { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import {
@@ -45,6 +46,11 @@ export async function startGatewaySidecars(params: {
   } catch (err) {
     params.logBrowser.error(`server failed to start: ${String(err)}`);
   }
+
+  // Initialize Firebase Cloud Messaging for push notifications (non-blocking).
+  void initializeFCM().catch((err) => {
+    // Silently ignore - already logged by initializeFCM
+  });
 
   // Start Gmail watcher if configured (hooks.gmail.account).
   if (!isTruthyEnvValue(process.env.OPENCLAW_SKIP_GMAIL_WATCHER)) {
