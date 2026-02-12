@@ -2,17 +2,17 @@ import type { Message as FCMMessage } from "firebase-admin/messaging";
 import admin from "firebase-admin";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { getConfigDir } from "../config/index.js";
+import { resolveStateDir } from "../config/paths.js";
 
 let fcmApp: admin.app.App | null = null;
 
 /**
  * Initialize FCM (Firebase Cloud Messaging) client.
- * Requires firebase-admin-sdk.json in OpenClaw config directory.
+ * Requires firebase-admin-sdk.json in OpenClaw state directory (~/.openclaw).
  */
 export async function initializeFCM(): Promise<boolean> {
   try {
-    const serviceAccountPath = resolve(getConfigDir(), "firebase-admin-sdk.json");
+    const serviceAccountPath = resolve(resolveStateDir(), "firebase-admin-sdk.json");
     const serviceAccount = JSON.parse(await readFile(serviceAccountPath, "utf-8"));
 
     fcmApp = admin.initializeApp({
@@ -25,7 +25,9 @@ export async function initializeFCM(): Promise<boolean> {
     const err = error as Error;
     console.warn("⚠️  FCM initialization failed:", err.message);
     console.warn("   Push notifications will be disabled.");
-    console.warn("   Place firebase-admin-sdk.json in OpenClaw config directory to enable.");
+    console.warn(
+      "   Place firebase-admin-sdk.json in OpenClaw state directory (~/.openclaw) to enable.",
+    );
     return false;
   }
 }
