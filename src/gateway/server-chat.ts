@@ -1,7 +1,9 @@
 import { normalizeVerboseLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
 import { type AgentEventPayload, getAgentRunContext } from "../infra/agent-events.js";
+import { listDevicePairing, getPushToken } from "../infra/device-pairing.js";
 import { resolveHeartbeatVisibility } from "../infra/heartbeat-visibility.js";
+import { sendPushNotification } from "../infra/push-notifications.js";
 import { loadSessionEntry } from "./session-utils.js";
 import { formatForLog } from "./ws-log.js";
 
@@ -22,6 +24,62 @@ function shouldSuppressHeartbeatBroadcast(runId: string): boolean {
   } catch {
     // Default to suppressing if we can't load config
     return true;
+  }
+}
+
+/**
+ * Send push notifications to disconnected devices for a new message.
+ * @param sessionKey - Session that received the message
+ * @param messagePreview - Text preview of the message
+ * @param connectedDeviceIds - Set of currently connected device IDs
+ */
+async function sendPushToDisconnectedDevices(params: {
+  sessionKey: string;
+  messagePreview: string;
+  connectedDeviceIds: Set<string>;
+}): Promise<void> {
+  try {
+    const pairing = await listDevicePairing();
+
+    // Check each paired device
+    for (const device of pairing.paired) {
+      // Skip if device is currently connected
+      if (params.connectedDeviceIds.has(device.deviceId)) {
+        continue;
+      }
+
+      // Check each role's push token
+      const tokens = device.tokens || {};
+      for (const [role, tokenData] of Object.entries(tokens)) {
+        // Skip revoked tokens
+        if (tokenData.revokedAtMs) {
+          continue;
+        }
+
+        // Get push token for this device+role
+        const pushInfo = await getPushToken({
+          deviceId: device.deviceId,
+          role,
+        });
+
+        if (pushInfo) {
+          // Send push notification
+          await sendPushNotification({
+            pushToken: pushInfo.pushToken,
+            pushPlatform: pushInfo.pushPlatform,
+            title: "New Message",
+            body: params.messagePreview,
+            data: {
+              sessionKey: params.sessionKey,
+              type: "chat",
+            },
+          });
+        }
+      }
+    }
+  } catch (error) {
+    // Log error but don't throw - push notification failure shouldn't break chat
+    console.error("Failed to send push notifications:", error);
   }
 }
 
@@ -282,6 +340,18 @@ export function createAgentEventHandler({
         broadcast("chat", payload);
       }
       nodeSendToSession(sessionKey, "chat", payload);
+
+      // Send push notifications to disconnected devices
+      // TODO: Need to pass actual connected device IDs from gateway server
+      // For now, sending to all disconnected devices (will need refinement)
+      if (text) {
+        const messagePreview = text.length > 100 ? text.slice(0, 100) + "..." : text;
+        void sendPushToDisconnectedDevices({
+          sessionKey,
+          messagePreview,
+          connectedDeviceIds: new Set(), // TODO: Get from gateway context
+        });
+      }
       return;
     }
     const payload = {

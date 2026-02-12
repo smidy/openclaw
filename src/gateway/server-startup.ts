@@ -49,7 +49,7 @@ export async function startGatewaySidecars(params: {
   }
 
   // Initialize Firebase Cloud Messaging for push notifications (non-blocking).
-  void initializeFCM().catch((err) => {
+  void initializeFCM().catch(() => {
     // Silently ignore - already logged by initializeFCM
   });
 

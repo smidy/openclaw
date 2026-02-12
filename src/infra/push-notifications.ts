@@ -5,19 +5,12 @@ import { resolve } from "node:path";
 import { getConfigDir } from "../config/index.js";
 
 let fcmApp: admin.app.App | null = null;
-let initialized = false;
 
 /**
  * Initialize FCM (Firebase Cloud Messaging) client.
  * Requires firebase-admin-sdk.json in OpenClaw config directory.
  */
 export async function initializeFCM(): Promise<boolean> {
-  if (initialized) {
-    return fcmApp !== null;
-  }
-
-  initialized = true;
-
   try {
     const serviceAccountPath = resolve(getConfigDir(), "firebase-admin-sdk.json");
     const serviceAccount = JSON.parse(await readFile(serviceAccountPath, "utf-8"));
@@ -38,7 +31,7 @@ export async function initializeFCM(): Promise<boolean> {
 }
 
 /**
- * Send push notification via FCM (Android) or APNs (iOS).
+ * Send push notification via FCM (Android) or APNs (iOS via FCM).
  */
 export async function sendPushNotification(params: {
   pushToken: string;
